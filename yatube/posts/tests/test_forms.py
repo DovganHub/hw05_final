@@ -54,8 +54,9 @@ class PostCreateFormTests(TestCase):
         last_post = Post.objects.latest('id')
         self.assertEqual(last_post.text, form_data['text'])
         self.assertEqual(last_post.group.id, form_data['group'])
-        self.assertEqual(last_post.image.name.split('/')[1].split('_')[0],
-                         form_data['image'].name.split('.')[0])
+        self.assertEqual(
+            last_post.image.name.split('/')[1].split('_')[0].split('.')[0],
+            form_data['image'].name.split('.')[0])
         self.assertEqual(last_post.author,
                          PostCreateFormTests.user)
 
