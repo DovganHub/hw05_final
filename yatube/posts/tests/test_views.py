@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
-from ..models import Group, Post, Comment, Follow
+from ..models import Group, Post, Follow
 from django import forms
 from django.core.cache import cache
 
@@ -41,6 +41,8 @@ class ViewsTest(TestCase):
         self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(ViewsTest.authoruser)
+        self.not_follower_client = Client()
+        self.not_follower_client.force_login(ViewsTest.notauthoruser)
 
     def check_posts_context(self, post):
         """Проверяет возвращаемый контекст"""
@@ -142,27 +144,6 @@ class ViewsTest(TestCase):
                 post = response.context.get('page_obj')[0]
                 self.assertEqual(post.image, ViewsTest.post.image)
 
-    def test_post_detail_image_is_there(self):
-        """"В шаблон post_detail передаётся картинка"""
-        response = self.authorized_client.get(reverse('posts:post_detail',
-                                              kwargs={'post_id':
-                                                      ViewsTest.post.pk}))
-        post = response.context.get('post')
-        self.assertEqual(post.image, ViewsTest.post.image)
-
-    def test_auth_user_can_comment(self):
-        """После добавления коммент появляется и он ок"""
-        count = Comment.objects.count()
-        self.authorized_client.post(reverse('posts:add_comment',
-                                    kwargs={'post_id': ViewsTest.post.pk}),
-                                    {'text': 'Is that you, John Wayne?'}
-                                    )
-        self.guest_client.post(reverse('posts:add_comment',
-                                       kwargs={'post_id': ViewsTest.post.pk}),
-                               {'text': 'This is me!'}
-                               )
-        self.assertEqual(Comment.objects.count(), count + 1)
-
     def test_new_comment_appears(self):
         text = 'This is me!'
         self.authorized_client.post(reverse('posts:add_comment',
@@ -185,9 +166,9 @@ class ViewsTest(TestCase):
         response_old = self.guest_client.get(reverse('posts:index'))
         Post.objects.create(text='test2', author=ViewsTest.authoruser)
         response_new = self.guest_client.get(reverse('posts:index'))
+        self.assertEqual(response_old.content, response_new.content)
         cache.clear()
         response_cash_clr = self.guest_client.get(reverse('posts:index'))
-        self.assertEqual(response_old.content, response_new.content)
         self.assertNotEqual(response_new.content, response_cash_clr.content)
 
     def test_follow(self):
@@ -203,6 +184,8 @@ class ViewsTest(TestCase):
         self.assertEqual(count, count_follows + 1)
         self.assertEqual(Follow.objects.latest('id').author,
                          ViewsTest.notauthoruser)
+        self.assertEqual(Follow.objects.latest('id').user,
+                         ViewsTest.authoruser)
 
     def test_unfollow(self):
         Follow.objects.create(user=ViewsTest.authoruser,
@@ -213,3 +196,22 @@ class ViewsTest(TestCase):
                                            ViewsTest.notauthoruser}))
         count_following = Follow.objects.all().count()
         self.assertEqual(count_following, count_follow - 1)
+
+    def test_follow_index(self):
+        """ Юзер фолловит автора, автор пишет пост, пост появляется у
+        зафолловившего юзера, а у незафолловившего - не появляется.
+        """
+        pushkin_user = User.objects.create_user(username='pushkin666')
+        self.authorized_client.get(reverse('posts:profile_follow',
+                                   kwargs={'username': pushkin_user}
+                                           ))
+        pushkin_post = Post.objects.create(author=pushkin_user,
+                                           text='Буря мглою небо кроет')
+        response_follower = self.authorized_client.get(
+            reverse('posts:follow_index'))
+        response_notfollower = self.not_follower_client.get(
+            reverse('posts:follow_index'))
+        self.assertEqual(len(response_follower.context['page_obj']), 1)
+        self.assertEqual(len(response_notfollower.context['page_obj']), 0)
+        self.assertEqual(response_follower.context['page_obj'][0].text,
+                         pushkin_post.text)

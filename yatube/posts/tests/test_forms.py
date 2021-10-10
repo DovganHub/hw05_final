@@ -1,4 +1,4 @@
-from ..models import Group, Post
+from ..models import Group, Post, Comment
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -18,8 +18,14 @@ class PostCreateFormTests(TestCase):
             description='Тестовое описание',
 
         )
+        cls.post_for_comment = Post.objects.create(
+            author=cls.user,
+            group=cls.group,
+            text='Под этот пост ставится коммент',
+        )
 
     def setUp(self):
+        self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
 
@@ -54,9 +60,6 @@ class PostCreateFormTests(TestCase):
         last_post = Post.objects.latest('id')
         self.assertEqual(last_post.text, form_data['text'])
         self.assertEqual(last_post.group.id, form_data['group'])
-        self.assertEqual(
-            last_post.image.name.split('/')[1].split('_')[0].split('.')[0],
-            form_data['image'].name.split('.')[0])
         self.assertEqual(last_post.author,
                          PostCreateFormTests.user)
 
@@ -79,3 +82,18 @@ class PostCreateFormTests(TestCase):
         )
         edited_post = Post.objects.get(id=post.id)
         self.assertEqual(edited_post.text, edited_form_data['text'])
+
+    def test_auth_user_can_comment(self):
+        """После добавления коммент появляется и он ок"""
+        count = Comment.objects.count()
+        self.authorized_client.post(
+            reverse('posts:add_comment',
+                    kwargs={'post_id':
+                            PostCreateFormTests.post_for_comment.pk}),
+            {'text': 'Is that you, John Wayne?'})
+        self.guest_client.post(
+            reverse('posts:add_comment',
+                    kwargs={'post_id':
+                            PostCreateFormTests.post_for_comment.pk}),
+            {'text': 'This is me!'})
+        self.assertEqual(Comment.objects.count(), count + 1)
