@@ -41,8 +41,6 @@ class ViewsTest(TestCase):
         self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(ViewsTest.authoruser)
-        self.not_follower_client = Client()
-        self.not_follower_client.force_login(ViewsTest.notauthoruser)
 
     def check_posts_context(self, post):
         """Проверяет возвращаемый контекст"""
@@ -129,21 +127,6 @@ class ViewsTest(TestCase):
                                                       ViewsTest.post.pk}))
         self.check_posts_context(response.context['post'])
 
-    def test_image_is_there(self):
-        """В шаблон передается контекст с картинкой, а не хухры-мухры"""
-        names = [reverse('posts:index'),
-                 reverse('posts:group',
-                         kwargs={'slug': ViewsTest.group.slug}),
-                 reverse('posts:profile',
-                         kwargs={'username':
-                                 ViewsTest.authoruser.username}),
-                 ]
-        for name in names:
-            with self.subTest(reverse=reverse):
-                response = self.authorized_client.get(name)
-                post = response.context.get('page_obj')[0]
-                self.assertEqual(post.image, ViewsTest.post.image)
-
     def test_new_comment_appears(self):
         text = 'This is me!'
         self.authorized_client.post(reverse('posts:add_comment',
@@ -180,11 +163,12 @@ class ViewsTest(TestCase):
         self.authorized_client.get(reverse('posts:profile_follow',
                                    kwargs={'username': ViewsTest.notauthoruser}
                                            ))
-        count = Follow.objects.all().count()
+        count = Follow.objects.count()
+        latest_following = Follow.objects.latest('id')
         self.assertEqual(count, count_follows + 1)
-        self.assertEqual(Follow.objects.latest('id').author,
+        self.assertEqual(latest_following.author,
                          ViewsTest.notauthoruser)
-        self.assertEqual(Follow.objects.latest('id').user,
+        self.assertEqual(latest_following.user,
                          ViewsTest.authoruser)
 
     def test_unfollow(self):
@@ -197,9 +181,9 @@ class ViewsTest(TestCase):
         count_following = Follow.objects.all().count()
         self.assertEqual(count_following, count_follow - 1)
 
-    def test_follow_index(self):
+    def test_follower_index(self):
         """ Юзер фолловит автора, автор пишет пост, пост появляется у
-        зафолловившего юзера, а у незафолловившего - не появляется.
+        зафолловившего юзера.
         """
         pushkin_user = User.objects.create_user(username='pushkin666')
         self.authorized_client.get(reverse('posts:profile_follow',
@@ -209,9 +193,16 @@ class ViewsTest(TestCase):
                                            text='Буря мглою небо кроет')
         response_follower = self.authorized_client.get(
             reverse('posts:follow_index'))
-        response_notfollower = self.not_follower_client.get(
-            reverse('posts:follow_index'))
         self.assertEqual(len(response_follower.context['page_obj']), 1)
-        self.assertEqual(len(response_notfollower.context['page_obj']), 0)
         self.assertEqual(response_follower.context['page_obj'][0].text,
                          pushkin_post.text)
+
+    def test_notfollower_index(self):
+        """ Автор пишет пост, но у незафолловившего юзера он почему-то не появляется.
+        """
+        sotona_user = User.objects.create_user(username='megasotona2009')
+        Post.objects.create(author=sotona_user,
+                            text='Часть силы той, что..')
+        response_notfollower = self.authorized_client.get(
+            reverse('posts:follow_index'))
+        self.assertEqual(len(response_notfollower.context['page_obj']), 0)

@@ -62,6 +62,7 @@ class PostCreateFormTests(TestCase):
         self.assertEqual(last_post.group.id, form_data['group'])
         self.assertEqual(last_post.author,
                          PostCreateFormTests.user)
+        self.assertNotEqual(last_post.image, None)
 
     def test_edit_post(self):
         """Редактируем пост и проверяем, изменился ли он"""
@@ -86,14 +87,22 @@ class PostCreateFormTests(TestCase):
     def test_auth_user_can_comment(self):
         """После добавления коммент появляется и он ок"""
         count = Comment.objects.count()
+        text = 'Is that you, John Wayne?'
         self.authorized_client.post(
             reverse('posts:add_comment',
                     kwargs={'post_id':
                             PostCreateFormTests.post_for_comment.pk}),
-            {'text': 'Is that you, John Wayne?'})
+            {'text': text})
+        self.assertEqual(Comment.objects.count(), count + 1)
+        self.assertEqual(Comment.objects.latest('id').text, text)
+        self.assertEqual(Comment.objects.latest('id').author, self.user)
+
+    def test_guest_user_cant_comment(self):
+        """Гость не может комментить. Не положено!"""
+        count = Comment.objects.count()
         self.guest_client.post(
             reverse('posts:add_comment',
                     kwargs={'post_id':
                             PostCreateFormTests.post_for_comment.pk}),
             {'text': 'This is me!'})
-        self.assertEqual(Comment.objects.count(), count + 1)
+        self.assertEqual(Comment.objects.count(), count)
