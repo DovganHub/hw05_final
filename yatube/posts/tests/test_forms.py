@@ -93,9 +93,13 @@ class PostCreateFormTests(TestCase):
                     kwargs={'post_id':
                             PostCreateFormTests.post_for_comment.pk}),
             {'text': text})
+        latest_comment = Comment.objects.latest('id')
         self.assertEqual(Comment.objects.count(), count + 1)
-        self.assertEqual(Comment.objects.latest('id').text, text)
-        self.assertEqual(Comment.objects.latest('id').author, self.user)
+        self.assertEqual(latest_comment.text, text)
+        self.assertEqual(latest_comment.author, self.user)
+        self.assertEqual(
+            Post.objects.filter(pk=PostCreateFormTests.post_for_comment.pk)[0],
+            PostCreateFormTests.post_for_comment)
 
     def test_guest_user_cant_comment(self):
         """Гость не может комментить. Не положено!"""

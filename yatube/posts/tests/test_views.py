@@ -185,23 +185,21 @@ class ViewsTest(TestCase):
         """ Юзер фолловит автора, автор пишет пост, пост появляется у
         зафолловившего юзера.
         """
-        pushkin_user = User.objects.create_user(username='pushkin666')
         self.authorized_client.get(reverse('posts:profile_follow',
-                                   kwargs={'username': pushkin_user}
+                                   kwargs={'username': ViewsTest.notauthoruser}
                                            ))
-        pushkin_post = Post.objects.create(author=pushkin_user,
-                                           text='Буря мглою небо кроет')
+        notauthoruser_post = Post.objects.create(
+            author=ViewsTest.notauthoruser, text='Буря мглою небо кроет')
         response_follower = self.authorized_client.get(
             reverse('posts:follow_index'))
         self.assertEqual(len(response_follower.context['page_obj']), 1)
-        self.assertEqual(response_follower.context['page_obj'][0].text,
-                         pushkin_post.text)
+        self.assertEqual(response_follower.context['page_obj'][0],
+                         notauthoruser_post)
 
     def test_notfollower_index(self):
         """ Автор пишет пост, но у незафолловившего юзера он почему-то не появляется.
         """
-        sotona_user = User.objects.create_user(username='megasotona2009')
-        Post.objects.create(author=sotona_user,
+        Post.objects.create(author=ViewsTest.notauthoruser,
                             text='Часть силы той, что..')
         response_notfollower = self.authorized_client.get(
             reverse('posts:follow_index'))
