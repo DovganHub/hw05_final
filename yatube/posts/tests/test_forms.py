@@ -98,7 +98,7 @@ class PostCreateFormTests(TestCase):
         self.assertEqual(latest_comment.text, text)
         self.assertEqual(latest_comment.author, self.user)
         self.assertEqual(
-            Post.objects.filter(pk=PostCreateFormTests.post_for_comment.pk)[0],
+            latest_comment.post,
             PostCreateFormTests.post_for_comment)
 
     def test_guest_user_cant_comment(self):
